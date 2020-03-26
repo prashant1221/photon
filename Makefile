@@ -61,6 +61,12 @@ else
 PHOTON_RPMCHECK_FLAGS :=
 endif
 
+ifeq ($(CONTAINER_BUILD),enable)
+CONTAINER_BUILD_FLAG := --enable-container-build
+else
+CONTAINER_BUILD_FLAG :=
+endif
+
 # KAT build for FIPS certification
 # Use KAT_BUILD=enable to build a kat kernel. By default, KAT_BUILD is disabled.
 ifeq ($(KAT_BUILD),enable)
@@ -137,6 +143,7 @@ packages-minimal: check-tools photon-stage $(PHOTON_PUBLISH_RPMS) $(PHOTON_SOURC
 		--release-version $(PHOTON_RELEASE_VERSION) \
 		--pkginfo-file $(PHOTON_PKGINFO_FILE) \
 		$(PHOTON_RPMCHECK_FLAGS) \
+                $(CONTAINER_BUILD_FLAG) \
 		$(PUBLISH_BUILD_DEPENDENCIES) \
 		$(PACKAGE_WEIGHTS) \
 		--threads ${THREADS}
@@ -160,11 +167,12 @@ packages-initrd: check-tools photon-stage $(PHOTON_PUBLISH_RPMS) $(PHOTON_SOURCE
 		--release-version $(PHOTON_RELEASE_VERSION) \
 		--pkginfo-file $(PHOTON_PKGINFO_FILE) \
 		$(PHOTON_RPMCHECK_FLAGS) \
+                $(CONTAINER_BUILD_FLAG) \
 		$(PUBLISH_BUILD_DEPENDENCIES) \
 		$(PACKAGE_WEIGHTS) \
 		--threads ${THREADS}
 
-packages: check-docker-py check-tools photon-stage $(PHOTON_PUBLISH_XRPMS) $(PHOTON_PUBLISH_RPMS) $(PHOTON_SOURCES) $(CONTAIN) check-spec-files generate-dep-lists
+packages: check-tools photon-stage $(PHOTON_PUBLISH_XRPMS) $(PHOTON_PUBLISH_RPMS) $(PHOTON_SOURCES) $(CONTAIN) check-spec-files generate-dep-lists
 	@echo "Building all RPMS..."
 	@echo ""
 	@cd $(PHOTON_PKG_BUILDER_DIR) && \
@@ -186,12 +194,19 @@ packages: check-docker-py check-tools photon-stage $(PHOTON_PUBLISH_XRPMS) $(PHO
 		--pkginfo-file $(PHOTON_PKGINFO_FILE) \
 		$(PACKAGE_BUILD_OPTIONS) \
 		$(PHOTON_RPMCHECK_FLAGS) \
+                $(CONTAINER_BUILD_FLAG) \
 		$(PHOTON_KAT_BUILD_FLAGS) \
 		$(CROSS_TARGET_FLAGS) \
 		$(PUBLISH_BUILD_DEPENDENCIES) \
 		$(PACKAGE_WEIGHTS) \
 		--threads ${THREADS}
 	$(PHOTON_REPO_TOOL) $(PHOTON_RPMS_DIR)
+
+distributed-build:
+	@echo "Building all RPMS..."
+	@echo ""
+	@cd $(PHOTON_PKG_BUILDER_DIR) && \
+	$(PHOTON_DISTRIBUTED_BUILDER)
 
 packages-docker: check-docker-py check-docker-service check-tools photon-stage $(PHOTON_PUBLISH_XRPMS) $(PHOTON_PUBLISH_RPMS) $(PHOTON_SOURCES) $(CONTAIN) generate-dep-lists
 	@echo "Building all RPMS..."
@@ -215,6 +230,7 @@ packages-docker: check-docker-py check-docker-service check-tools photon-stage $
 		--pkginfo-file $(PHOTON_PKGINFO_FILE) \
 		$(PACKAGE_BUILD_OPTIONS) \
 		$(PHOTON_RPMCHECK_FLAGS) \
+                $(CONTAINER_BUILD_FLAG) \
 		$(CROSS_TARGET_FLAGS) \
 		$(PUBLISH_BUILD_DEPENDENCIES) \
 		$(PACKAGE_WEIGHTS) \
@@ -240,6 +256,7 @@ updated-packages: check-tools photon-stage $(PHOTON_PUBLISH_XRPMS) $(PHOTON_PUBL
 		--input-RPMS-path $(PHOTON_INPUT_RPMS_DIR) \
 		$(PHOTON_KAT_BUILD_FLAGS) \
 		$(PHOTON_RPMCHECK_FLAGS) \
+                $(CONTAINER_BUILD_FLAG) \
 		$(PUBLISH_BUILD_DEPENDENCIES) \
 		$(PACKAGE_WEIGHTS) \
 		--threads ${THREADS}
@@ -263,6 +280,7 @@ tool-chain-stage1: check-tools photon-stage $(PHOTON_PUBLISH_RPMS) $(PHOTON_SOUR
 		--build-number $(PHOTON_BUILD_NUMBER) \
 		--release-version $(PHOTON_RELEASE_VERSION) \
 		$(PHOTON_RPMCHECK_FLAGS) \
+                $(CONTAINER_BUILD_FLAG) \
 		--tool-chain-stage stage1
 
 tool-chain-stage2: check-tools photon-stage $(PHOTON_PUBLISH_RPMS) $(PHOTON_SOURCES) $(CONTAIN) generate-dep-lists
@@ -284,6 +302,7 @@ tool-chain-stage2: check-tools photon-stage $(PHOTON_PUBLISH_RPMS) $(PHOTON_SOUR
 		--build-number $(PHOTON_BUILD_NUMBER) \
 		--release-version $(PHOTON_RELEASE_VERSION) \
 		$(PHOTON_RPMCHECK_FLAGS) \
+                $(CONTAINER_BUILD_FLAG) \
 		--tool-chain-stage stage2
 
 %: check-tools $(PHOTON_PUBLISH_RPMS) $(PHOTON_PUBLISH_XRPMS) $(PHOTON_SOURCES) $(CONTAIN) check-spec-files $(eval PKG_NAME = $@)
@@ -305,6 +324,7 @@ tool-chain-stage2: check-tools photon-stage $(PHOTON_PUBLISH_RPMS) $(PHOTON_SOUR
 		--release-version $(PHOTON_RELEASE_VERSION) \
 		$(PACKAGE_BUILD_OPTIONS) \
 		$(PHOTON_RPMCHECK_FLAGS) \
+                $(CONTAINER_BUILD_FLAG) \
 		$(PHOTON_KAT_BUILD_FLAGS) \
 		$(CROSS_TARGET_FLAGS) \
 		--log-path $(PHOTON_LOGS_DIR) \
@@ -565,9 +585,7 @@ ifeq (,$(wildcard $(DOCKER_ENV)))
 endif
 
 check-docker-py:
-ifeq (,$(wildcard $(DOCKER_ENV)))
-	@python3 -c "import docker; assert docker.__version__ >= '$(PHOTON_DOCKER_PY_VER)'" >/dev/null 2>&1 || { echo "Error: Python3 package docker-py3 $(PHOTON_DOCKER_PY_VER) not installed.\nPlease use: pip3 install docker==$(PHOTON_DOCKER_PY_VER)" >&2; exit 1; }
-endif
+	@test -f $(DOCKER_ENV) || @python3 -c "import docker; assert docker.__version__ >= '$(PHOTON_DOCKER_PY_VER)'" >/dev/null 2>&1 || { echo "Error: Python3 package docker-py3 $(PHOTON_DOCKER_PY_VER) not installed.\nPlease use: pip3 install docker==$(PHOTON_DOCKER_PY_VER)" >&2; exit 1; }
 
 check-pyopenssl:
 	@python3 -c "import OpenSSL" > /dev/null 2>&1 || { echo "Error pyOpenSSL package not installed.\nPlease use: pip3 install pyOpenSSL" >&2; exit 1; }
