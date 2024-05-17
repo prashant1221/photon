@@ -1,4 +1,4 @@
-[submodule "photon"]
-	path = photon
+[submodule "photon_common"]
+	path = photon_common
 	url = git@github.com:prashant1221/photon.git
 	branch = specs
